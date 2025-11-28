@@ -43,23 +43,7 @@ if (process.env.NODE_ENV === 'development') {
 
 interface RootLayoutProps {
   children: React.ReactNode;
-<<<<<<< HEAD
-}>) {
-  // Log environment info in development
-  if (typeof window === 'undefined') {
-    const envInfo = getEnvironmentInfo();
-    console.log('[Environment Info]', envInfo);
-  }
-
-  const content = (
-    <>
-      {children}
-      <Toaster />
-    </>
-  );
-=======
 }
->>>>>>> b56bb2660ccc262165432c47aa3d633b47d49077
 
 export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
   return (

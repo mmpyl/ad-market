@@ -1,61 +1,38 @@
 import { AUTH_CODE } from '@/constants/auth';
 
-/**
- * Standard API response structure for all API endpoints
- * @template T - The type of data returned in successful responses
- */
+// ==================== Types ====================
+
 interface ApiResponse<T = any> {
-  /** Indicates if the API call was successful */
   success: boolean;
-  /** The response data (only present when success is true) */
   data?: T;
-  /** Optional success message */
   message?: string;
-  /** Error message (only present when success is false) */
   errorMessage?: string;
-  /** Error code for programmatic error handling */
   errorCode?: string;
 }
 
-/**
- * Custom error class for API-related errors
- * Extends the built-in Error class with HTTP status and error code information
- */
 class ApiError extends Error {
-  /** HTTP status code of the error */
-  public status: number;
-  /** Human-readable error message */
-  public errorMessage: string;
-  /** Optional error code for programmatic handling */
-  public errorCode?: string;
-
-  /**
-   * Creates a new ApiError instance
-   * @param status - HTTP status code
-   * @param errorMessage - Human-readable error message
-   * @param errorCode - Optional error code for programmatic handling
-   */
-  constructor(status: number, errorMessage: string, errorCode?: string) {
+  constructor(
+    public status: number,
+    public errorMessage: string,
+    public errorCode?: string
+  ) {
     super(errorMessage);
     this.name = 'ApiError';
-    this.status = status;
-    this.errorMessage = errorMessage;
-    this.errorCode = errorCode;
-    // Mantiene el stack trace correcto en V8
+    
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ApiError);
     }
   }
 }
 
-/** Flag to prevent multiple simultaneous token refresh attempts */
+// ==================== Refresh Token State ====================
+
 let isRefreshing = false;
-/** Promise that resolves when token refresh is complete */
 let refreshPromise: Promise<boolean> | null = null;
 
 /**
- * Attempts to refresh the authentication token
- * @returns Promise<boolean> - True if refresh was successful, false otherwise
+ * Intenta refrescar el token de autenticación
+ * @returns Promise<boolean> - true si el refresh fue exitoso
  */
 async function refreshToken(): Promise<boolean> {
   try {
@@ -64,7 +41,7 @@ async function refreshToken(): Promise<boolean> {
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // Importante para cookies
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -72,12 +49,7 @@ async function refreshToken(): Promise<boolean> {
     }
 
     const result: ApiResponse = await response.json();
-
-    if (result.success) {
-      return true;
-    }
-
-    return false;
+    return result.success === true;
   } catch (error) {
     console.error('Error refreshing token:', error);
     return false;
@@ -85,27 +57,30 @@ async function refreshToken(): Promise<boolean> {
 }
 
 /**
- * Redirects the user to the login page with the current path as a redirect parameter
- * Only works in browser environment (client-side)
+ * Redirige al usuario a la página de login
+ * Preserva la ruta actual para redirección post-login
  */
 function redirectToLogin(): void {
-  if (typeof window !== 'undefined') {
-    const currentPath = window.location.pathname;
-    if(currentPath === '/login' || currentPath === '/login/') {
-      return;
-    }
-    const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
-    window.location.href = loginUrl;
+  if (typeof window === 'undefined') {
+    return;
   }
+
+  const currentPath = window.location.pathname;
+  
+  if (currentPath === '/login' || currentPath === '/login/') {
+    return;
+  }
+
+  const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
+  window.location.href = loginUrl;
 }
 
 /**
- * Core API request function with automatic token refresh and error handling
- * @template T - The expected return type of the API response data
- * @param endpoint - API endpoint path (will be prefixed with '/next-api')
- * @param options - Fetch API options (headers, method, etc.)
- * @param isRetry - Internal flag to prevent infinite retry loops during token refresh
- * @returns Promise<T> - Resolves with the response data or rejects with ApiError
+ * Realiza una petición HTTP a la API con manejo automático de refresh token
+ * @param endpoint - Ruta del endpoint (sin /next-api)
+ * @param options - Opciones de fetch
+ * @param isRetry - Indica si es un reintento después de refresh
+ * @returns Promise<T> - Datos de respuesta tipados
  */
 async function apiRequest<T = any>(
   endpoint: string,
@@ -118,13 +93,14 @@ async function apiRequest<T = any>(
         'Content-Type': 'application/json',
         ...options?.headers,
       },
-      credentials: 'include', // Importante para cookies
+      credentials: 'include',
       ...options,
     });
 
     const result: ApiResponse<T> = await response.json();
 
-    if (result.errorCode === AUTH_CODE.TOKEN_MISSING) {
+    // Token faltante - redirigir inmediatamente
+    if ([AUTH_CODE.TOKEN_MISSING].includes(result.errorCode || '')) {
       redirectToLogin();
       throw new ApiError(401, result.errorMessage || 'Token missing', result.errorCode);
     }
@@ -138,7 +114,7 @@ async function apiRequest<T = any>(
       // Si ya hay un refresh en proceso, esperar a que termine
       if (isRefreshing && refreshPromise) {
         const refreshSuccess = await refreshPromise;
-
+        
         if (refreshSuccess) {
           return apiRequest<T>(endpoint, options, true);
         } else {
@@ -156,7 +132,6 @@ async function apiRequest<T = any>(
           const refreshSuccess = await refreshPromise;
 
           if (refreshSuccess) {
-            // Reintentar request original
             return apiRequest<T>(endpoint, options, true);
           } else {
             redirectToLogin();
@@ -184,23 +159,21 @@ async function apiRequest<T = any>(
       throw error;
     }
 
-    // Error de red u otro tipo de error
     console.error('API request error:', error);
     throw new ApiError(500, 'Network error or invalid response');
   }
 }
 
+// ==================== API Client ====================
+
 /**
- * Centralized API client with automatic authentication handling
- * Provides HTTP methods (GET, POST, PUT, DELETE) with built-in token refresh
+ * Cliente API con métodos HTTP
  */
 export const api = {
   /**
-   * Performs a GET request to the specified endpoint
-   * @template T - Expected response data type
-   * @param endpoint - API endpoint path (without '/next-api' prefix)
-   * @param params - Optional query parameters as key-value pairs
-   * @returns Promise<T> - Resolves with response data or rejects with ApiError
+   * Petición GET
+   * @param endpoint - Ruta del endpoint
+   * @param params - Query parameters opcionales
    */
   get: <T = any>(endpoint: string, params?: Record<string, string>) => {
     const url = params
@@ -210,11 +183,9 @@ export const api = {
   },
 
   /**
-   * Performs a POST request to the specified endpoint
-   * @template T - Expected response data type
-   * @param endpoint - API endpoint path (without '/next-api' prefix)
-   * @param data - Request body data to be JSON serialized
-   * @returns Promise<T> - Resolves with response data or rejects with ApiError
+   * Petición POST
+   * @param endpoint - Ruta del endpoint
+   * @param data - Datos a enviar en el body
    */
   post: <T = any>(endpoint: string, data?: any) =>
     apiRequest<T>(endpoint, {
@@ -223,11 +194,9 @@ export const api = {
     }),
 
   /**
-   * Performs a PUT request to the specified endpoint
-   * @template T - Expected response data type
-   * @param endpoint - API endpoint path (without '/next-api' prefix)
-   * @param data - Request body data to be JSON serialized
-   * @returns Promise<T> - Resolves with response data or rejects with ApiError
+   * Petición PUT
+   * @param endpoint - Ruta del endpoint
+   * @param data - Datos a actualizar
    */
   put: <T = any>(endpoint: string, data?: any) =>
     apiRequest<T>(endpoint, {
@@ -236,11 +205,9 @@ export const api = {
     }),
 
   /**
-   * Performs a PATCH request to the specified endpoint
-   * @template T - Expected response data type
-   * @param endpoint - API endpoint path (without '/next-api' prefix)
-   * @param data - Request body data to be JSON serialized
-   * @returns Promise<T> - Resolves with response data or rejects with ApiError
+   * Petición PATCH
+   * @param endpoint - Ruta del endpoint
+   * @param data - Datos a actualizar parcialmente
    */
   patch: <T = any>(endpoint: string, data?: any) =>
     apiRequest<T>(endpoint, {
@@ -249,15 +216,14 @@ export const api = {
     }),
 
   /**
-   * Performs a DELETE request to the specified endpoint
-   * @template T - Expected response data type
-   * @param endpoint - API endpoint path (without '/next-api' prefix)
-   * @returns Promise<T> - Resolves with response data or rejects with ApiError
+   * Petición DELETE
+   * @param endpoint - Ruta del endpoint
    */
   delete: <T = any>(endpoint: string) =>
     apiRequest<T>(endpoint, { method: 'DELETE' }),
 };
 
+// ==================== Exports ====================
+
 export { ApiError };
 export type { ApiResponse };
-
