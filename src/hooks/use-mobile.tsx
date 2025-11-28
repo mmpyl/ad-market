@@ -1,19 +1,33 @@
-import * as React from "react"
+import { useState, useEffect } from "react";
 
-const MOBILE_BREAKPOINT = 768
+const MOBILE_BREAKPOINT = 768;
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+/**
+ * Hook para detectar si el dispositivo es móvil
+ * @returns boolean - true si el ancho de la ventana es menor a 768px
+ */
+export function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState<boolean | undefined>(undefined);
 
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+  useEffect(() => {
+    // Crear media query
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    
+    // Handler para cambios en el tamaño de ventana
     const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
-    mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    return () => mql.removeEventListener("change", onChange)
-  }, [])
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
 
-  return !!isMobile
+    // Agregar listener
+    mql.addEventListener("change", onChange);
+    
+    // Setear valor inicial
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+
+    // Cleanup
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  // Retornar false por defecto si undefined (SSR)
+  return !!isMobile;
 }
