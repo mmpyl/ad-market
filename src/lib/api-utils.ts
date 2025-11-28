@@ -2,8 +2,11 @@ import { AUTH_CODE } from '@/constants/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-// Validate environment variables
-export function validateEnv() {
+/**
+ * Valida que todas las variables de entorno requeridas estén presentes
+ * @throws Error si falta alguna variable requerida
+ */
+export function validateEnv(): void {
   const requiredEnvVars = [
     'POSTGREST_URL',
     'POSTGREST_SCHEMA',
@@ -29,145 +32,203 @@ interface ApiResponse<T = any> {
 }
 
 class ApiError extends Error {
-  constructor(public status: number, public errorMessage: string, public errorCode?: string) {
+  constructor(
+    public status: number,
+    public errorMessage: string,
+    public errorCode?: string
+  ) {
     super(errorMessage);
     this.name = 'ApiError';
+    
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ApiError);
+    }
   }
 }
 
-// Cookie utilities
+// ==================== Cookie Utilities ====================
+
+interface CookieOptions {
+  path?: string;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: 'strict' | 'lax' | 'none';
+  maxAge?: number;
+}
+
+/**
+ * Establece una cookie en la respuesta
+ */
 export function setCookie(
   response: Response,
   name: string,
   value: string,
-  options: {
-    path?: string;
-    httpOnly?: boolean;
-    secure?: boolean;
-    sameSite?: 'strict' | 'lax' | 'none';
-    maxAge?: number;
-  } = {}
-) {
-  const { path = '/', httpOnly = true, secure = false, sameSite = 'strict', maxAge } = options;
+  options: CookieOptions = {}
+): void {
+  const {
+    path = '/',
+    httpOnly = true,
+    secure = process.env.NODE_ENV === 'production',
+    sameSite = 'lax',
+    maxAge
+  } = options;
 
-  let cookie = `${name}=${value}; Path=${path}; HttpOnly=${httpOnly}; SameSite=${sameSite}`;
+  const cookieParts = [
+    `${name}=${value}`,
+    `Path=${path}`,
+    `SameSite=${sameSite}`
+  ];
+
+  if (httpOnly) {
+    cookieParts.push('HttpOnly');
+  }
 
   if (secure) {
-    cookie += '; Secure';
+    cookieParts.push('Secure');
   }
 
-  if (maxAge) {
-    cookie += `; Max-Age=${maxAge}`;
+  if (maxAge !== undefined) {
+    cookieParts.push(`Max-Age=${maxAge}`);
   }
 
-  response.headers.set('Set-Cookie', cookie);
+  response.headers.append('Set-Cookie', cookieParts.join('; '));
 }
 
-export function clearCookie(response: Response, name: string, path: string = '/') {
-  response.headers.set('Set-Cookie', `${name}=; Path=${path}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly=true; SameSite=strict`);
+/**
+ * Elimina una cookie estableciendo su expiración en el pasado
+ */
+export function clearCookie(response: Response, name: string, path: string = '/'): void {
+  const cookieParts = [
+    `${name}=`,
+    `Path=${path}`,
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    'HttpOnly',
+    'SameSite=lax'
+  ];
+
+  response.headers.append('Set-Cookie', cookieParts.join('; '));
 }
 
-// Get cookies from request
+/**
+ * Obtiene múltiples cookies del request
+ */
 export function getCookies(request: NextRequest, names: string[]): string[] {
   const cookies = request.headers.get('cookie') || '';
+  
   return names.map(name => {
-    const match = cookies.match(new RegExp(`(?:^|; )${name.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, '\\$1')}=([^;]*)`));
+    const escapedName = name.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, '\\$1');
+    const match = cookies.match(new RegExp(`(?:^|; )${escapedName}=([^;]*)`));
     return match ? decodeURIComponent(match[1]) : '';
   });
 }
 
-// Redirect response
+/**
+ * Obtiene una cookie individual del request
+ */
+export function getCookie(request: NextRequest, name: string): string {
+  return getCookies(request, [name])[0];
+}
+
+// ==================== Response Utilities ====================
+
+/**
+ * Crea una respuesta de redirección
+ */
 export function responseRedirect(url: string, redirectUrl?: string): NextResponse {
   return NextResponse.redirect(redirectUrl || url);
 }
 
-// Parse query parameters
-export function parseQueryParams(request: NextRequest): { limit?: number; offset?: number; search?: string; id?: string } {
-  const url = new URL(request.url);
-  const limit = url.searchParams.get('limit') ? parseInt(url.searchParams.get('limit')!) : undefined;
-  const offset = url.searchParams.get('offset') ? parseInt(url.searchParams.get('offset')!) : undefined;
-  const search = url.searchParams.get('search') || undefined;
-  const id = url.searchParams.get('id') || undefined;
-  return { limit, offset, search, id };
-}
-
-// Request middleware for API routes
-export function requestMiddleware(
-  handler: (request: NextRequest, context: { token?: string; payload?: any }) => Promise<Response>,
-  requireAuth: boolean = true
-) {
-  return async (request: NextRequest): Promise<Response> => {
-    try {
-      let context: { token?: string; payload?: any } = {};
-
-      if (requireAuth) {
-        const authHeader = request.headers.get('authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              errorMessage: 'Authorization token required',
-              errorCode: 'TOKEN_MISSING',
-            }),
-            {
-              status: 401,
-              headers: { 'Content-Type': 'application/json' },
-            }
-          );
-        }
-
-        const token = authHeader.substring(7);
-        const { verifyToken } = await import('./auth');
-        const verification = await verifyToken(token);
-
-        if (!verification.valid) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              errorMessage: 'Invalid or expired token',
-              errorCode: verification.code,
-            }),
-            {
-              status: verification.code === 'TOKEN_EXPIRED' ? 401 : 401,
-              headers: { 'Content-Type': 'application/json' },
-            }
-          );
-        }
-
-        context = {
-          token,
-          payload: verification.payload,
-        };
-      }
-
-      return await handler(request, context);
-    } catch (error) {
-      console.error('Request middleware error:', error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          errorMessage: 'Internal server error',
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+/**
+ * Crea una respuesta JSON exitosa
+ */
+export function responseSuccess<T>(data: T, message?: string): Response {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      data,
+      message,
+    } as ApiResponse<T>),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     }
-  };
+  );
 }
 
-// Validate request body
-export async function validateRequestBody(request: NextRequest): Promise<any> {
+/**
+ * Crea una respuesta JSON de error
+ */
+export function responseError(
+  status: number,
+  errorMessage: string,
+  errorCode?: string
+): Response {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      errorMessage,
+      errorCode,
+    } as ApiResponse),
+    {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
+}
+
+// ==================== Request Utilities ====================
+
+interface QueryParams {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  id?: string;
+  [key: string]: string | number | undefined;
+}
+
+/**
+ * Parsea query parameters del request
+ */
+export function parseQueryParams(request: NextRequest): QueryParams {
+  const url = new URL(request.url);
+  const params: QueryParams = {};
+
+  // Parámetros comunes
+  const limit = url.searchParams.get('limit');
+  const offset = url.searchParams.get('offset');
+  const search = url.searchParams.get('search');
+  const id = url.searchParams.get('id');
+
+  if (limit) params.limit = parseInt(limit, 10);
+  if (offset) params.offset = parseInt(offset, 10);
+  if (search) params.search = search;
+  if (id) params.id = id;
+
+  // Agregar todos los demás params
+  url.searchParams.forEach((value, key) => {
+    if (!['limit', 'offset', 'search', 'id'].includes(key)) {
+      params[key] = value;
+    }
+  });
+
+  return params;
+}
+
+/**
+ * Valida y parsea el body del request
+ */
+export async function validateRequestBody<T = any>(request: NextRequest): Promise<T> {
   try {
     const body = await request.json();
-    return body;
+    return body as T;
   } catch (error) {
-    throw new Error('Invalid JSON in request body');
+    throw new ApiError(400, 'Invalid JSON in request body', 'INVALID_JSON');
   }
 }
 
-// Get request IP address
+/**
+ * Obtiene la IP del request
+ */
 export function getRequestIp(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for');
   const realIp = request.headers.get('x-real-ip');
@@ -177,20 +238,97 @@ export function getRequestIp(request: NextRequest): string {
   }
 
   if (realIp) {
-    return realIp;
+    return realIp.trim();
   }
 
-  // Fallback to a default or localhost
   return '127.0.0.1';
 }
 
-// Send verification email
-export async function sendVerificationEmail(email: string, code: string): Promise<boolean> {
+// ==================== Auth Middleware ====================
+
+interface RequestContext {
+  token?: string;
+  payload?: any;
+}
+
+type RouteHandler = (
+  request: NextRequest,
+  context: RequestContext
+) => Promise<Response>;
+
+/**
+ * Middleware para rutas de API con autenticación opcional
+ */
+export function requestMiddleware(
+  handler: RouteHandler,
+  requireAuth: boolean = true
+) {
+  return async (request: NextRequest): Promise<Response> => {
+    try {
+      const context: RequestContext = {};
+
+      if (requireAuth) {
+        const authHeader = request.headers.get('authorization');
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return responseError(
+            401,
+            'Authorization token required',
+            AUTH_CODE.TOKEN_MISSING
+          );
+        }
+
+        const token = authHeader.substring(7);
+        const { verifyToken } = await import('./auth');
+        const verification = await verifyToken(token);
+
+        if (!verification.valid) {
+          return responseError(
+            401,
+            'Invalid or expired token',
+            verification.code
+          );
+        }
+
+        context.token = token;
+        context.payload = verification.payload;
+      }
+
+      return await handler(request, context);
+    } catch (error) {
+      console.error('Request middleware error:', error);
+      
+      if (error instanceof ApiError) {
+        return responseError(error.status, error.errorMessage, error.errorCode);
+      }
+      
+      return responseError(500, 'Internal server error', 'INTERNAL_ERROR');
+    }
+  };
+}
+
+// ==================== Email Utilities ====================
+
+/**
+ * Envía email de verificación usando Resend
+ */
+export async function sendVerificationEmail(
+  email: string,
+  code: string
+): Promise<boolean> {
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const apiKey = process.env.RESEND_API_KEY;
+    
+    if (!apiKey) {
+      console.error('RESEND_API_KEY not configured');
+      return false;
+    }
+
+    const resend = new Resend(apiKey);
+    const fromEmail = process.env.FROM_EMAIL || 'noreply@tu-dominio.com';
 
     const { data, error } = await resend.emails.send({
-      from: 'Sistema Minimarket <noreply@tu-dominio.com>',
+      from: `Sistema Minimarket <${fromEmail}>`,
       to: [email],
       subject: 'Código de Verificación - Sistema Minimarket',
       html: `
@@ -199,9 +337,9 @@ export async function sendVerificationEmail(email: string, code: string): Promis
           <p>Hola,</p>
           <p>Tu código de verificación para el Sistema Minimarket es:</p>
           <div style="background-color: #f3f4f6; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
-            <span style="font-size: 24px; font-weight: bold; color: #2563eb;">${code}</span>
+            <span style="font-size: 32px; font-weight: bold; color: #2563eb; letter-spacing: 0.5em;">${code}</span>
           </div>
-          <p>Este código expirará en 10 minutos.</p>
+          <p style="color: #ef4444; font-weight: 500;">Este código expirará en 10 minutos.</p>
           <p>Si no solicitaste este código, puedes ignorar este mensaje.</p>
           <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;">
           <p style="color: #6b7280; font-size: 14px;">
@@ -225,136 +363,10 @@ export async function sendVerificationEmail(email: string, code: string): Promis
   }
 }
 
-let isRefreshing = false;
-let refreshPromise: Promise<boolean> | null = null;
+// ==================== Client-side API (should be in separate file) ====================
 
-async function refreshToken(): Promise<boolean> {
-  try {
-    const response = await fetch('/next_api/auth/refresh', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      return false;
-    }
-
-    const result: ApiResponse = await response.json();
-
-    if (result.success) {
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    return false;
-  }
-}
-
-function redirectToLogin() {
-  if (typeof window !== 'undefined') {
-    const currentPath = window.location.pathname;
-    if(currentPath === '/login' || currentPath === '/login/') {
-      return;
-    }
-    const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
-    window.location.href = loginUrl;
-  }
-}
-
-async function apiRequest<T = any>(
-  endpoint: string,
-  options?: RequestInit,
-  isRetry = false
-): Promise<T> {
-  try {
-    const response = await fetch(`/next_api${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-      ...options,
-    });
-
-    const result: ApiResponse<T> = await response.json();
-
-    if ([AUTH_CODE.TOKEN_MISSING].includes(result.errorCode || '')) {
-      redirectToLogin();
-      return result.data as T;
-    }
-
-    if (response.status === 401 &&
-        result.errorCode === AUTH_CODE.TOKEN_EXPIRED &&
-        !isRetry) {
-
-      if (isRefreshing && refreshPromise) {
-        const refreshSuccess = await refreshPromise;
-        if (refreshSuccess) {
-          return apiRequest<T>(endpoint, options, true);
-        } else {
-          redirectToLogin();
-          return result.data as T;
-        }
-      }
-
-      if (!isRefreshing) {
-        isRefreshing = true;
-        refreshPromise = refreshToken();
-
-        try {
-          const refreshSuccess = await refreshPromise;
-
-          if (refreshSuccess) {
-            return apiRequest<T>(endpoint, options, true);
-          } else {
-            redirectToLogin();
-            return result.data as T;
-          }
-        } finally {
-          isRefreshing = false;
-          refreshPromise = null;
-        }
-      }
-    }
-
-    if(!response.ok || !result.success) {
-      throw new ApiError(response.status, result.errorMessage || 'API Error', result.errorCode);
-    }
-
-    return result.data as T;
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    throw new ApiError(500, 'Network error or invalid response');
-  }
-}
-
-export const api = {
-  get: <T = any>(endpoint: string, params?: Record<string, string>) => {
-    const url = params
-      ? `${endpoint}?${new URLSearchParams(params).toString()}`
-      : endpoint;
-    return apiRequest<T>(url, { method: 'GET' });
-  },
-
-  post: <T = any>(endpoint: string, data?: any) =>
-    apiRequest<T>(endpoint, {
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-    }),
-
-  put: <T = any>(endpoint: string, data?: any) =>
-    apiRequest<T>(endpoint, {
-      method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
-    }),
-
-  delete: <T = any>(endpoint: string) =>
-    apiRequest<T>(endpoint, { method: 'DELETE' }),
-};
+// NOTA: Este código debería estar en un archivo separado (api-client.ts)
+// ya que es código de cliente y no debería estar en utilities de servidor
 
 export { ApiError };
-export type { ApiResponse };
+export type { ApiResponse, CookieOptions, QueryParams, RequestContext };
