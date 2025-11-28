@@ -5,16 +5,30 @@ import { User } from '@/types/auth';
 import { api } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
 
+/**
+ * Authentication context interface defining all available auth operations
+ */
 interface AuthContextType {
+  /** Currently authenticated user or null if not authenticated */
   user: User | null;
+  /** Loading state during authentication operations */
   isLoading: boolean;
+  /** Login function with email and password */
   login: (email: string, password: string) => Promise<void>;
+  /** Google OAuth login function */
   googleLogin: (access_token: string) => Promise<void>;
+  /** User registration function */
   register: (email: string, password: string, passcode: string) => Promise<void>;
+  /** Logout function */
   logout: () => Promise<void>;
+  /** Refresh current user data from server */
   refreshUser: () => Promise<void>;
 }
 
+/**
+ * React context for authentication state management
+ * Provides authentication state and methods throughout the application
+ */
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
@@ -51,19 +65,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const register = async (email: string, password: string, passcode: string)  => {
+  /**
+   * Registers a new user account
+   * @param email - User's email address
+   * @param password - User's password
+   * @param passcode - Registration passcode for verification
+   * @throws Error if registration fails
+   */
+  const register = async (email: string, password: string, passcode: string): Promise<void> => {
     try {
-      await api.post('/auth/register', { 
-        email, 
-        password, 
-        passcode, 
+      await api.post('/auth/register', {
+        email,
+        password,
+        passcode,
       });
     } catch (error) {
       throw error;
     }
   };
 
-  const logout = async () => {
+  /**
+   * Logs out the current user and redirects to login page
+   * Clears user state and navigates to login regardless of API call success
+   */
+  const logout = async (): Promise<void> => {
     try {
       await api.post('/auth/logout');
       setUser(null);
@@ -74,7 +99,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const refreshUser = useCallback(async () => {
+  /**
+   * Refreshes current user data from the server
+   * Updates user state and loading state accordingly
+   * Memoized with useCallback to prevent unnecessary re-renders
+   */
+  const refreshUser = useCallback(async (): Promise<void> => {
     try {
       const userData = await api.get('/auth/user');
       setUser(userData);
@@ -85,7 +115,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const googleLogin = async (access_token: string) => {
+  /**
+   * Authenticates user using Google OAuth access token
+   * @param access_token - Google OAuth access token
+   * @throws Error if Google authentication fails
+   */
+  const googleLogin = async (access_token: string): Promise<void> => {
     try {
       await api.post('/auth/google-login', {
         access_token,

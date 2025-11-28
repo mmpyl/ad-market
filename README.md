@@ -84,7 +84,6 @@ RESEND_API_KEY=your-resend-api-key
 
 # App Configuration
 NEXT_PUBLIC_APP_CODE=admin-market
-NEXT_PUBLIC_ZOER_HOST=https://zoer.ai
 ```
 
 **Obtener las variables:**
@@ -321,7 +320,6 @@ SCHEMA_ADMIN_USER      # Usuario admin por defecto
 HASH_SALT_KEY          # Salt para hash de contraseñas
 RESEND_API_KEY         # Clave API de Resend para emails
 NEXT_PUBLIC_APP_CODE   # Código de la aplicación
-NEXT_PUBLIC_ZOER_HOST  # Host de integración Zoer
 ```
 
 ## 🔒 Seguridad

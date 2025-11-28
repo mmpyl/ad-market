@@ -72,7 +72,13 @@ function analyzeCodeQuality() {
     
     const content = fs.readFileSync(fullPath, 'utf8');
     const lines = content.split('\n');
-    const commentLines = lines.filter(l => l.trim().startsWith('//') || l.trim().startsWith('*')).length;
+    // Count both regular comments and JSDoc comments
+    const commentLines = lines.filter(l =>
+      l.trim().startsWith('//') ||
+      l.trim().startsWith('*') ||
+      l.trim().startsWith('/**') ||
+      l.trim().startsWith(' *')
+    ).length;
     const functionMatches = content.match(/(?:function|const\s+\w+\s*=\s*(?:async\s*)?\(|export\s+function)/g);
     const exportMatches = content.match(/export\s+(function|const|interface|class|type)/g);
     const typeMatches = content.match(/:\s*(?:string|number|boolean|object|any|[\w<>[\]]+)(?![a-zA-Z])/g);
@@ -120,9 +126,14 @@ function analyzeCodeQuality() {
   log('\n📈 Puntuación de Calidad:\n', colors.blue);
   
   // Documentación: ratio de comentarios
-  const avgDocumentation = Object.values(results.files)
-    .reduce((sum, f) => sum + parseFloat(f.documentationRatio), 0) / results.files.length || 0;
+  const documentationRatios = Object.values(results.files).map(f => parseFloat(f.documentationRatio) || 0);
+  const avgDocumentation = documentationRatios.reduce((sum, ratio) => sum + ratio, 0) / documentationRatios.length || 0;
   results.quality.documentation = Math.min(100, avgDocumentation * 2);
+
+  // Debug logging
+  console.log(`\nDEBUG - Documentation ratios:`, documentationRatios);
+  console.log(`DEBUG - Average documentation: ${avgDocumentation.toFixed(2)}%`);
+  console.log(`DEBUG - Documentation score: ${results.quality.documentation.toFixed(1)}/100\n`);
   
   // Manejo de errores: cantidad de manejo de errores
   results.quality.errorHandling = Math.min(100, (results.totals.errorHandling / results.totals.lines) * 1000);
