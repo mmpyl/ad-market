@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,39 +17,59 @@ export function UsuariosManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUsuario, setEditingUsuario] = useState<Usuario | null>(null);
   const [page, setPage] = useState(1);
+
   const [formData, setFormData] = useState<Partial<Usuario>>({
     estado: 'activo',
     rol: 'vendedor',
   });
 
-  useEffect(() => {
-    fetchUsuarios();
-  }, [page]);
-
-  const fetchUsuarios = async () => {
+  // -------------------------------------------------------
+  // 🔹 1. Obtener Usuarios (Memo + Callback = evita rerenders)
+  // -------------------------------------------------------
+  const fetchUsuarios = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.get(`/auth/users?limit=20&offset=${(page - 1) * 20}`);
-      setUsuarios(data?.data || []);
+
+      const { data } = await api.get(
+        `/auth/users?limit=20&offset=${(page - 1) * 20}`
+      );
+
+      setUsuarios(data ?? []);
     } catch (error) {
       toast.error('Error al cargar usuarios');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
 
+  useEffect(() => {
+    fetchUsuarios();
+  }, [fetchUsuarios]);
+
+  // -------------------------------------------------------
+  // 🔹 2. Crear Usuario
+  // -------------------------------------------------------
   const handleCreate = () => {
     setEditingUsuario(null);
-    setFormData({ estado: 'activo', rol: 'vendedor' });
+    setFormData({
+      estado: 'activo',
+      rol: 'vendedor',
+    });
     setIsModalOpen(true);
   };
 
+  // -------------------------------------------------------
+  // 🔹 3. Editar Usuario
+  // -------------------------------------------------------
   const handleEdit = (usuario: Usuario) => {
     setEditingUsuario(usuario);
     setFormData(usuario);
     setIsModalOpen(true);
   };
 
+  // -------------------------------------------------------
+  // 🔹 4. Eliminar Usuario
+  // -------------------------------------------------------
   const handleDelete = async (id: number | string) => {
     try {
       await api.delete(`/auth/users/${id}`);
@@ -60,6 +80,9 @@ export function UsuariosManagement() {
     }
   };
 
+  // -------------------------------------------------------
+  // 🔹 5. Guardar (Crear o Actualizar)
+  // -------------------------------------------------------
   const handleSubmit = async () => {
     try {
       if (editingUsuario?.id) {
@@ -69,6 +92,7 @@ export function UsuariosManagement() {
         await api.post('/add-user', formData);
         toast.success('Usuario creado');
       }
+
       setIsModalOpen(false);
       fetchUsuarios();
     } catch (error) {
@@ -76,50 +100,73 @@ export function UsuariosManagement() {
     }
   };
 
-  const getRolColor = (rol: string) => {
+  // -------------------------------------------------------
+  // 🔹 6. Colores por rol (Memo)
+  // -------------------------------------------------------
+  const getRolColor = useCallback((rol: string) => {
     const colors: Record<string, string> = {
       administrador: 'bg-red-100 text-red-800',
       vendedor: 'bg-blue-100 text-blue-800',
       almacenero: 'bg-purple-100 text-purple-800',
       auditor: 'bg-orange-100 text-orange-800',
     };
-    return colors[rol] || 'bg-gray-100 text-gray-800';
-  };
+    return colors[rol] ?? 'bg-gray-100 text-gray-800';
+  }, []);
 
-  const columns = [
-    { key: 'nombre' as const, label: 'Nombre' },
-    { key: 'email' as const, label: 'Email' },
-    {
-      key: 'rol' as const,
-      label: 'Rol',
-      render: (value: string) => (
-        <span className={`px-2 py-1 rounded text-sm font-medium ${getRolColor(value)}`}>
-          {value}
-        </span>
-      ),
-    },
-    {
-      key: 'estado' as const,
-      label: 'Estado',
-      render: (value: string) => (
-        <span className={`px-2 py-1 rounded text-sm ${
-          value === 'activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {value}
-        </span>
-      ),
-    },
-  ];
+  // -------------------------------------------------------
+  // 🔹 7. Columnas de Tabla (Memo = Mejor performance)
+  // -------------------------------------------------------
+  const columns = useMemo(
+    () => [
+      { key: 'nombre' as const, label: 'Nombre' },
+      { key: 'email' as const, label: 'Email' },
+      {
+        key: 'rol' as const,
+        label: 'Rol',
+        render: (value: string) => (
+          <span className={`px-2 py-1 rounded text-sm font-medium ${getRolColor(value)}`}>
+            {value}
+          </span>
+        ),
+      },
+      {
+        key: 'estado' as const,
+        label: 'Estado',
+        render: (value: string) => (
+          <span
+            className={`px-2 py-1 rounded text-sm ${
+              value === 'activo'
+                ? 'bg-green-100 text-green-800'
+                : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {value}
+          </span>
+        ),
+      },
+    ],
+    [getRolColor]
+  );
 
-  const roleStats = [
-    { role: 'administrador', count: usuarios.filter(u => u.rol === 'administrador').length },
-    { role: 'vendedor', count: usuarios.filter(u => u.rol === 'vendedor').length },
-    { role: 'almacenero', count: usuarios.filter(u => u.rol === 'almacenero').length },
-    { role: 'auditor', count: usuarios.filter(u => u.rol === 'auditor').length },
-  ];
+  // -------------------------------------------------------
+  // 🔹 8. Resumen de roles (Memo)
+  // -------------------------------------------------------
+  const roleStats = useMemo(
+    () => [
+      { role: 'administrador', count: usuarios.filter((u) => u.rol === 'administrador').length },
+      { role: 'vendedor', count: usuarios.filter((u) => u.rol === 'vendedor').length },
+      { role: 'almacenero', count: usuarios.filter((u) => u.rol === 'almacenero').length },
+      { role: 'auditor', count: usuarios.filter((u) => u.rol === 'auditor').length },
+    ],
+    [usuarios]
+  );
 
+  // -------------------------------------------------------
+  // 🔹 Render
+  // -------------------------------------------------------
   return (
     <div className="space-y-6">
+      {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         {roleStats.map((stat) => (
           <Card key={stat.role}>
@@ -131,6 +178,7 @@ export function UsuariosManagement() {
         ))}
       </div>
 
+      {/* Tabla */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -160,6 +208,7 @@ export function UsuariosManagement() {
         </CardContent>
       </Card>
 
+      {/* Modal */}
       <FormModal
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
@@ -169,31 +218,35 @@ export function UsuariosManagement() {
         <div className="space-y-3">
           <Input
             placeholder="Nombre"
-            value={formData.nombre || ''}
+            value={formData.nombre ?? ''}
             onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
             required
           />
+
           <Input
             placeholder="Apellido"
-            value={formData.apellido || ''}
+            value={formData.apellido ?? ''}
             onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
           />
+
           <Input
             type="email"
             placeholder="Email"
-            value={formData.email || ''}
+            value={formData.email ?? ''}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             required
           />
+
           <Input
             type="tel"
             placeholder="Teléfono"
-            value={formData.telefono || ''}
+            value={formData.telefono ?? ''}
             onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
           />
+
           <select
             title="Rol del usuario"
-            value={formData.rol || 'vendedor'}
+            value={formData.rol ?? 'vendedor'}
             onChange={(e) => setFormData({ ...formData, rol: e.target.value as any })}
             className="w-full px-3 py-2 border rounded-lg"
           >
@@ -202,9 +255,10 @@ export function UsuariosManagement() {
             <option value="almacenero">Almacenero</option>
             <option value="auditor">Auditor</option>
           </select>
+
           <select
             title="Estado del usuario"
-            value={formData.estado || 'activo'}
+            value={formData.estado ?? 'activo'}
             onChange={(e) => setFormData({ ...formData, estado: e.target.value as any })}
             className="w-full px-3 py-2 border rounded-lg"
           >
