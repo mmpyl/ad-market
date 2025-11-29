@@ -3,34 +3,35 @@ import { requestMiddleware, getCookies } from "@/lib/api-utils";
 import { createErrorResponse, createAuthResponse } from "@/lib/create-response";
 import { generateToken, authCrudOperations } from "@/lib/auth";
 import { generateRandomString, pbkdf2Hash } from "@/lib/server-utils";
-import { REFRESH_TOKEN_EXPIRE_TIME } from "@/constants/auth";
-import { AUTH_CODE } from "@/constants/auth";
-
+import { REFRESH_TOKEN_EXPIRE_TIME, AUTH_CODE } from "@/constants/auth";
 
 export const POST = requestMiddleware(async (request: NextRequest) => {
   try {
-    const [refresh_token] = getCookies(request, ["refresh-token"]);
-    
-    if (!refresh_token) {
+    const [refreshToken] = getCookies(request, ["refresh-token"]);
+
+    if (!refreshToken) {
       return createErrorResponse({
         errorCode: AUTH_CODE.REFRESH_TOKEN_MISSING,
         errorMessage: "Refresh token is missing",
         status: 401,
       });
     }
-    
-    const hashedRefreshToken = await pbkdf2Hash(refresh_token);
-    const { usersCrud, sessionsCrud, refreshTokensCrud } =
-      await authCrudOperations();
 
-    const refreshTokenRecords = await refreshTokensCrud.findMany({
+    const hashedRefreshToken = await pbkdf2Hash(refreshToken);
+    const { usersCrud, sessionsCrud, refreshTokensCrud } = await authCrudOperations();
+
+    // Buscar refresh token válido
+    const records = await refreshTokensCrud.findMany({
       token: hashedRefreshToken,
       revoked: false,
     });
 
-    const refreshTokenRecord = refreshTokenRecords?.[0];
+    const record = records?.[0];
 
-    if (!refreshTokenRecord || new Date(refreshTokenRecord.expires_at).getTime() < new Date().getTime()) {
+    if (
+      !record ||
+      new Date(record.expires_at).getTime() <= Date.now()
+    ) {
       return createErrorResponse({
         errorCode: AUTH_CODE.REFRESH_TOKEN_EXPIRED,
         errorMessage: "Refresh token is expired or invalid",
@@ -38,28 +39,26 @@ export const POST = requestMiddleware(async (request: NextRequest) => {
       });
     }
 
-    refreshTokensCrud.update(refreshTokenRecord.id, {
-      revoked: true,
-    });
+    // Revocar token viejo
+    await refreshTokensCrud.update(record.id, { revoked: true });
 
+    // Crear nuevo refresh token
     const newRefreshToken = await generateRandomString();
-
     const hashedNewRefreshToken = await pbkdf2Hash(newRefreshToken);
 
     await refreshTokensCrud.create({
       token: hashedNewRefreshToken,
-      user_id: refreshTokenRecord.user_id,
-      session_id: refreshTokenRecord.session_id,
-      expires_at: new Date(
-        Date.now() + REFRESH_TOKEN_EXPIRE_TIME
-      ).toISOString(),
+      user_id: record.user_id,
+      session_id: record.session_id,
+      expires_at: new Date(Date.now() + REFRESH_TOKEN_EXPIRE_TIME * 1000).toISOString(),
     });
 
-    sessionsCrud.update(refreshTokenRecord.session_id, {
+    // Actualizar sesión
+    await sessionsCrud.update(record.session_id, {
       refresh_at: new Date().toISOString(),
     });
 
-    const user = await usersCrud.findById(refreshTokenRecord.user_id);
+    const user = await usersCrud.findById(record.user_id);
 
     const accessToken = await generateToken({
       sub: user.id,
@@ -71,6 +70,7 @@ export const POST = requestMiddleware(async (request: NextRequest) => {
       accessToken,
       refreshToken: newRefreshToken,
     });
+
   } catch (error) {
     return createErrorResponse({
       errorMessage: "Failed to refresh the token",
