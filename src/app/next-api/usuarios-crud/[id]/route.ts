@@ -1,68 +1,78 @@
-import { NextRequest } from 'next/server';
 import CrudOperations from '@/lib/crud-operations';
 import { usuarioSchema } from '@/lib/schemas';
-import { createErrorResponse } from '@/lib/create-response';
+import { requestMiddleware } from '@/lib/api-utils';
+import { createSuccessResponse, createErrorResponse } from '@/lib/create-response';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return createErrorResponse({ errorMessage: 'No autorizado', status: 401 });
+// -------------------------------------------------------------
+// GET → Obtener usuario por ID
+// -------------------------------------------------------------
+export const GET = requestMiddleware(async (request, context) => {
+  const { id } = context.params;
 
-    const crud = new CrudOperations('usuarios', token);
-    const usuario = await crud.findById(id);
+  const crud = new CrudOperations('usuarios', context.token);
+  const usuario = await crud.findById(id);
 
-    if (!usuario) {
-      return Response.json({ success: false, message: 'Usuario no encontrado' }, { status: 404 });
-    }
-
-    return Response.json({ success: true, data: usuario });
-  } catch (error: any) {
-    return Response.json({ success: false, message: error.message }, { status: 500 });
+  if (!usuario) {
+    return createErrorResponse({
+      status: 404,
+      errorMessage: 'Usuario no encontrado',
+    });
   }
-}
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return createErrorResponse({ errorMessage: 'No autorizado', status: 401 });
+  return createSuccessResponse(usuario);
+}, true);
 
-    const body = await request.json();
-    const validatedData = usuarioSchema.partial().parse(body);
+// -------------------------------------------------------------
+// PUT → Actualizar usuario
+// -------------------------------------------------------------
+export const PUT = requestMiddleware(async (request, context) => {
+  const { id } = context.params;
 
-    const crud = new CrudOperations('usuarios', token);
-    const usuario = await crud.update(id, validatedData as any);
+  const body = await request.json();
 
-    return Response.json({ success: true, data: usuario, message: 'Usuario actualizado' });
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return Response.json({ success: false, message: 'Validación fallida', errors: error.errors }, { status: 400 });
-    }
-    return Response.json({ success: false, message: error.message }, { status: 500 });
+  // Validación parcial
+  const validatedData = usuarioSchema.partial().parse(body);
+
+  const crud = new CrudOperations('usuarios', context.token);
+
+  // Verificar existencia
+  const existing = await crud.findById(id);
+  if (!existing) {
+    return createErrorResponse({
+      status: 404,
+      errorMessage: 'Usuario no encontrado',
+    });
   }
-}
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return createErrorResponse({ errorMessage: 'No autorizado', status: 401 });
+  const usuarioActualizado = await crud.update(id, validatedData);
 
-    const crud = new CrudOperations('usuarios', token);
-    const result = await crud.delete(id);
+  return createSuccessResponse({
+    message: 'Usuario actualizado',
+    data: usuarioActualizado,
+  });
+}, true);
 
-    return Response.json({ success: true, data: result, message: 'Usuario eliminado' });
-  } catch (error: any) {
-    return Response.json({ success: false, message: error.message }, { status: 500 });
+// -------------------------------------------------------------
+// DELETE → Soft delete (recomendado)
+// -------------------------------------------------------------
+export const DELETE = requestMiddleware(async (request, context) => {
+  const { id } = context.params;
+
+  const crud = new CrudOperations('usuarios', context.token);
+
+  const existing = await crud.findById(id);
+  if (!existing) {
+    return createErrorResponse({
+      status: 404,
+      errorMessage: 'Usuario no encontrado',
+    });
   }
-}
+
+  // Soft delete → activo = false
+  const usuarioEliminado = await crud.update(id, { activo: false });
+
+  return createSuccessResponse({
+    message: 'Usuario desactivado',
+    data: usuarioEliminado,
+  });
+}, true);

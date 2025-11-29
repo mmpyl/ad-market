@@ -1,86 +1,115 @@
 import CrudOperations from '@/lib/crud-operations';
 import { createSuccessResponse, createErrorResponse } from '@/lib/create-response';
-import { requestMiddleware, parseQueryParams, validateRequestBody } from "@/lib/api-utils";
+import { requestMiddleware, parseQueryParams, validateRequestBody } from '@/lib/api-utils';
+import { z } from 'zod';
 
-// GET request - fetch data
+/* ============================================
+   Esquemas de Validación con Zod
+============================================ */
+const comprobanteSchema = z.object({
+  venta_id: z.number().int().positive(),
+  tipo_comprobante: z.string().min(1),
+  serie: z.string().min(1),
+  numero: z.string().min(1),
+  fecha_emision: z.string().optional(),
+  hash: z.string().optional(),
+  xml: z.string().optional(),
+  cdr: z.string().optional(),
+});
+
+/** Para PUT (actualización parcial) */
+const comprobantePartialSchema = comprobanteSchema.partial();
+
+/* ============================================
+   GET → Listado con paginación
+============================================ */
 export const GET = requestMiddleware(async (request, context) => {
-  const { limit, offset, search } = parseQueryParams(request);
-  // Create CRUD operations instance for examples table - The token is obtained from the parameters
-  // CrudOperations must be placed within each interface implementation to obtain the token and multiple requests are not allowed to share it
-  const examplesCrud = new CrudOperations("examples", context.token);
-  // Build filter conditions
-  const filters: Record<string, any> = {};
-  if (search) {
-    // Add search logic based on actual requirements
-    // Note: PostgREST doesn't support complex search, handle at app layer
-    filters.name = search; // Search by name field
-  }
-  const data = await examplesCrud.findMany(filters, { limit, offset });
+  const { limit, offset, venta_id, tipo } = parseQueryParams(request);
+
+  const comprobantesCrud = new CrudOperations('comprobantes_electronicos', context.token);
+
+  const filters: any = {};
+
+  if (venta_id) filters.venta_id = Number(venta_id);
+  if (tipo) filters.tipo_comprobante = tipo;
+
+  const data = await comprobantesCrud.findMany(filters, { limit, offset });
+
   return createSuccessResponse(data);
 }, true);
 
-// POST request - create data
+/* ============================================
+   POST → Crear Comprobante
+============================================ */
 export const POST = requestMiddleware(async (request, context) => {
-  const body = await validateRequestBody(request);
-  // Add specific data validation logic here
-  // Example: check required fields, data format, etc.
-  if (!body.name) {
+  try {
+    const body = await validateRequestBody(request);
+
+    const validated = comprobanteSchema.parse(body);
+
+    const comprobantesCrud = new CrudOperations('comprobantes_electronicos', context.token);
+    const created = await comprobantesCrud.create(validated);
+
+    return createSuccessResponse(created, 201);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return createErrorResponse({
+        errorMessage: 'Validación fallida',
+        status: 400,
+        errors: err.errors,
+      });
+    }
+
     return createErrorResponse({
-      errorMessage: "Name is required",
-      status: 400,
+      errorMessage: 'Error al crear el comprobante',
+      status: 500,
     });
   }
-  // const examplesCrud = new CrudOperations("examples", context.token);
-  // CrudOperations must be placed within each interface implementation to obtain the token and multiple requests are not allowed to share it
-  const examplesCrud = new CrudOperations("examples", context.token);
-  // If you need to use the user id when inserting data,It can be obtained in this way: context.payload?.sub
-  const user_id = context.payload?.sub;
-  const data = await examplesCrud.create({ ...body, user_id });
-  return createSuccessResponse(data, 201);
 }, true);
 
-// PUT request - update data
+/* ============================================
+   PUT → Actualizar Comprobante
+============================================ */
 export const PUT = requestMiddleware(async (request, context) => {
-  const { id } = parseQueryParams(request);
+  try {
+    const { id } = parseQueryParams(request);
 
-  if (!id) {
-    return createErrorResponse({
-      errorMessage: "Name is required",
-      status: 400,
-    });
-  }
-  const body = await validateRequestBody(request);
-  const examplesCrud = new CrudOperations("examples", context.token);
-  // Check if record exists
-  const existing = await examplesCrud.findById(id);
-  if (!existing) {
-    return createErrorResponse({
-      errorMessage: "Record not found",
-      status: 400,
-    });
-  }
-  const data = await examplesCrud.update(id, body);
-  return createSuccessResponse(data);
-}, true);
+    if (!id) {
+      return createErrorResponse({
+        errorMessage: 'ID es requerido',
+        status: 400,
+      });
+    }
 
-// DELETE request - delete data
-export const DELETE = requestMiddleware(async (request, context) => {
-  const { id } = parseQueryParams(request);
-  if (!id) {
+    const comprobantesCrud = new CrudOperations('comprobantes_electronicos', context.token);
+    const existing = await comprobantesCrud.findById(id);
+
+    if (!existing) {
+      return createErrorResponse({
+        errorMessage: 'Comprobante no encontrado',
+        status: 404,
+      });
+    }
+
+    const body = await validateRequestBody(request);
+
+    const validated = comprobantePartialSchema.parse(body);
+
+    const updated = await comprobantesCrud.update(id, validated);
+
+    return createSuccessResponse(updated);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return createErrorResponse({
+        errorMessage: 'Validación fallida',
+        status: 400,
+        errors: err.errors,
+      });
+    }
+
     return createErrorResponse({
-      errorMessage: "ID parameter is required",
-      status: 400,
+      errorMessage: 'Error al actualizar el comprobante',
+      status: 500,
     });
   }
-  const examplesCrud = new CrudOperations("examples", context.token);
-  // Check if record exists
-  const existing = await examplesCrud.findById(id);
-  if (!existing) {
-    return createErrorResponse({
-      errorMessage: "Record not found",
-      status: 400,
-    });
-  }
-  const data = await examplesCrud.delete(id);
-  return createSuccessResponse(data);
 }, true);

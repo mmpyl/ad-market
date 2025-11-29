@@ -2,39 +2,52 @@ import { NextRequest } from "next/server";
 import { requestMiddleware } from "@/lib/api-utils";
 import { authCrudOperations } from "@/lib/auth";
 import { pbkdf2Hash } from "@/lib/server-utils";
-import { createLogoutResponse } from '@/lib/create-response';
+import { createLogoutResponse } from "@/lib/create-response";
 
-export const POST = requestMiddleware(async (request: NextRequest, context: { token?: string; payload?: any }) => {
-  try {
-    const { refreshTokensCrud, sessionsCrud } = await authCrudOperations();
+export const POST = requestMiddleware(
+  async (request: NextRequest, context: { token?: string; payload?: any }) => {
+    try {
+      const { refreshTokensCrud, sessionsCrud } = await authCrudOperations();
+      const userId = context.payload?.sub;
 
-    if (context.payload?.sub) {
+      if (!userId) {
+        // No hay usuario autenticado — igual devolvemos logout
+        return createLogoutResponse();
+      }
+
       const refreshToken = request.cookies.get("refresh-token")?.value;
+      if (!refreshToken) {
+        return createLogoutResponse();
+      }
 
-      if (refreshToken) {
-        const hashedRefreshToken = await pbkdf2Hash(refreshToken);
+      // Hash del refresh token que envió el cliente
+      const hashedRefreshToken = await pbkdf2Hash(refreshToken);
 
-        const refreshTokenRecords = await refreshTokensCrud.findMany({
-          token: hashedRefreshToken,
-          revoked: false,
-        });
+      // Buscar tokens vigentes asociados
+      const records = await refreshTokensCrud.findMany({
+        token: hashedRefreshToken,
+        revoked: false,
+      });
 
-        if (refreshTokenRecords && refreshTokenRecords.length > 0) {
-          for (const record of refreshTokenRecords) {
-            await refreshTokensCrud.update(record.id, { revoked: true });
-          }
+      if (records.length > 0) {
+        // Revocar todos los tokens coincidentes
+        for (const record of records) {
+          await refreshTokensCrud.update(record.id, { revoked: true });
 
-          if (refreshTokenRecords[0].session_id) {
-            await sessionsCrud.update(refreshTokenRecords[0].session_id, {
+          // Actualizar sesión asociada (opcional)
+          if (record.session_id) {
+            await sessionsCrud.update(record.session_id, {
               updated_at: new Date().toISOString(),
             });
           }
         }
       }
-    }
 
-    return createLogoutResponse();
-  } catch (error) {
-    return createLogoutResponse();
-  }
-}, false);
+      return createLogoutResponse();
+    } catch {
+      // En errores también devolvemos logout (sin revelar detalles)
+      return createLogoutResponse();
+    }
+  },
+  false
+);

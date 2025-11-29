@@ -1,44 +1,35 @@
-
 import CrudOperations from '@/lib/crud-operations';
 import { createSuccessResponse, createErrorResponse } from '@/lib/create-response';
-import { requestMiddleware, parseQueryParams, validateRequestBody } from '@/lib/api-utils';
+import { requestMiddleware, validateRequestBody } from '@/lib/api-utils';
 
+// -------------------------------------------------------------
+// GET → obtener variante por ID
+// -------------------------------------------------------------
 export const GET = requestMiddleware(async (request, context) => {
-  const { limit, offset } = parseQueryParams(request);
-  const variantesCrud = new CrudOperations('producto_variantes', context.token);
-  
-  const data = await variantesCrud.findMany({}, { limit, offset });
-  return createSuccessResponse(data);
-}, true);
+  const { id } = context.params;
 
-export const POST = requestMiddleware(async (request, context) => {
-  const body = await validateRequestBody(request);
-  
-  if (!body.producto_id || !body.nombre_variante || !body.valor_variante) {
+  const variantesCrud = new CrudOperations('producto_variantes', context.token);
+  const variante = await variantesCrud.findById(id);
+
+  if (!variante) {
     return createErrorResponse({
-      errorMessage: 'Producto, nombre y valor de variante son requeridos',
-      status: 400,
+      errorMessage: 'Variante no encontrada',
+      status: 404,
     });
   }
-  
-  const variantesCrud = new CrudOperations('producto_variantes', context.token);
-  const data = await variantesCrud.create(body);
-  return createSuccessResponse(data, 201);
+
+  return createSuccessResponse(variante);
 }, true);
 
+// -------------------------------------------------------------
+// PUT → actualizar variante
+// -------------------------------------------------------------
 export const PUT = requestMiddleware(async (request, context) => {
-  const { id } = parseQueryParams(request);
-  
-  if (!id) {
-    return createErrorResponse({
-      errorMessage: 'ID es requerido',
-      status: 400,
-    });
-  }
-  
+  const { id } = context.params;
   const body = await validateRequestBody(request);
+
   const variantesCrud = new CrudOperations('producto_variantes', context.token);
-  
+
   const existing = await variantesCrud.findById(id);
   if (!existing) {
     return createErrorResponse({
@@ -46,7 +37,32 @@ export const PUT = requestMiddleware(async (request, context) => {
       status: 404,
     });
   }
-  
-  const data = await variantesCrud.update(id, body);
-  return createSuccessResponse(data);
+
+  const updated = await variantesCrud.update(id, body);
+  return createSuccessResponse(updated);
+}, true);
+
+// -------------------------------------------------------------
+// DELETE → soft delete recomendado
+// -------------------------------------------------------------
+export const DELETE = requestMiddleware(async (request, context) => {
+  const { id } = context.params;
+
+  const variantesCrud = new CrudOperations('producto_variantes', context.token);
+  const existing = await variantesCrud.findById(id);
+
+  if (!existing) {
+    return createErrorResponse({
+      errorMessage: 'Variante no encontrada',
+      status: 404,
+    });
+  }
+
+  // Soft delete → activo = false
+  const deleted = await variantesCrud.update(id, { activo: false });
+
+  return createSuccessResponse({
+    message: 'Variante eliminada',
+    data: deleted,
+  });
 }, true);

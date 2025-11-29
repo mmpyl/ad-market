@@ -1,46 +1,69 @@
 import { NextRequest } from 'next/server';
 import CrudOperations from '@/lib/crud-operations';
 import { usuarioSchema } from '@/lib/schemas';
-import { createErrorResponse } from '@/lib/create-response';
+import { requestMiddleware, parseQueryParams } from '@/lib/api-utils';
+import { createSuccessResponse, createErrorResponse } from '@/lib/create-response';
 
-export async function GET(request: NextRequest) {
-  try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return createErrorResponse({ errorMessage: 'No autorizado', status: 401 });
+// -------------------------------------------------------------
+// GET → Listar usuarios con paginación real
+// -------------------------------------------------------------
+export const GET = requestMiddleware(async (request, context) => {
+  const { limit, offset, search } = parseQueryParams(request);
 
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const offset = parseInt(searchParams.get('offset') || '0');
+  const crud = new CrudOperations('usuarios', context.token);
 
-    const crud = new CrudOperations('usuarios', token);
-    const usuarios = await crud.findMany(undefined, { limit, offset });
+  const filters: any = {};
 
-    return Response.json({
-      success: true,
-      data: usuarios,
-      pagination: { limit, offset, total: usuarios.length },
-    });
-  } catch (error: any) {
-    return Response.json({ success: false, message: error.message }, { status: 500 });
+  // Búsqueda opcional
+  if (search) {
+    filters.nombre = { operator: 'ilike', value: `%${search}%` };
   }
-}
 
-export async function POST(request: NextRequest) {
+  // Obtener registros
+  const usuarios = await crud.findMany(filters, {
+    limit,
+    offset,
+    orderBy: { column: 'created_at', direction: 'desc' },
+  });
+
+  // Total real (sin limit/offset)
+  const total = await crud.count(filters);
+
+  return createSuccessResponse({
+    data: usuarios,
+    pagination: { limit, offset, total }
+  });
+}, true);
+
+// -------------------------------------------------------------
+// POST → Crear usuario validado con Zod
+// -------------------------------------------------------------
+export const POST = requestMiddleware(async (request, context) => {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) return createErrorResponse({ errorMessage: 'No autorizado', status: 401 });
-
     const body = await request.json();
+
+    // Validación con Zod
     const validatedData = usuarioSchema.parse(body);
 
-    const crud = new CrudOperations('usuarios', token);
-    const usuario = await crud.create(validatedData as any);
+    const crud = new CrudOperations('usuarios', context.token);
+    const usuario = await crud.create(validatedData);
 
-    return Response.json({ success: true, data: usuario, message: 'Usuario creado' }, { status: 201 });
+    return createSuccessResponse(
+      { message: 'Usuario creado correctamente', data: usuario },
+      201
+    );
   } catch (error: any) {
     if (error.name === 'ZodError') {
-      return Response.json({ success: false, message: 'Validación fallida', errors: error.errors }, { status: 400 });
+      return createErrorResponse({
+        status: 400,
+        errorMessage: 'La validación falló',
+        errors: error.errors,
+      });
     }
-    return Response.json({ success: false, message: error.message }, { status: 500 });
+
+    return createErrorResponse({
+      status: 500,
+      errorMessage: error.message || 'Error interno del servidor',
+    });
   }
-}
+}, true);
