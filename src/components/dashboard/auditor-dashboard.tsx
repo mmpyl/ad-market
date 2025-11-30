@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { api } from '@/lib/api/client';
 import { FileText, Filter } from 'lucide-react';
-import { api } from '@/lib/api-client';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface AuditoriaRecord {
@@ -72,7 +72,7 @@ export function AuditorDashboard() {
               value={filterAccion}
               onChange={(e) => setFilterAccion(e.target.value)}
             />
-            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-900 rounded-lg">
+            <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-900 rounded-lg cursor-pointer" title="Filter">
               <Filter className="w-5 h-5" />
             </button>
           </div>

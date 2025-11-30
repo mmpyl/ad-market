@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DataTable } from '@/components/shared/DataTable';
+import { FormModal } from '@/components/shared/Modal';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { DataTable } from '@/components/ui/data-table';
-import { FormModal } from '@/components/ui/form-modal';
-import { Plus, Search } from 'lucide-react';
-import { toast } from 'sonner';
-import { api } from '@/lib/api-client';
+import { api } from '@/lib/api/client';
 import { Venta } from '@/lib/schemas';
+import { Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 const INITIAL_FORM: Partial<Venta> = {
   estado: 'pendiente',

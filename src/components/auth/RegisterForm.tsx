@@ -1,20 +1,20 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { useAuth } from "./AuthProvider";
-import { Loader2, ArrowLeft } from "lucide-react";
-import { api } from "@/lib/api-client";
+import { api } from "@/lib/api/client";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useAuth } from "./AuthProvider";
 
 const credentialsSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -69,10 +69,8 @@ export function RegisterForm({
         type: "register",
       });
 
-      if (!response) {
-        setError(
-          response.errorMessage || "Failed to send the verification code"
-        );
+      if (response?.errorMessage) {
+        setError(response.errorMessage);
         return false;
       }
 
@@ -168,8 +166,9 @@ export function RegisterForm({
             <button
               type="button"
               onClick={goBackToCredentials}
-              className="p-[5px] hover:bg-gray-100 rounded cursor-pointer"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-900 rounded-lg cursor-pointer"
               disabled={isLoading}
+              title="Go back to credentials"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>

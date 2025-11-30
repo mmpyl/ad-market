@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { FormModal } from '@/components/ui/form-modal';
-import { Plus, Shield } from 'lucide-react';
-import { api } from '@/lib/api-client';
-import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { api } from '@/lib/api/client';
 import { Usuario } from '@/lib/schemas';
+import { Plus, Shield } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 export function UsuariosManagement() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);

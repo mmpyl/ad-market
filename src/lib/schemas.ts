@@ -17,6 +17,8 @@ export const ventaSchema = z.object({
   updated_at: z.string().optional(),
 });
 
+export const ventaPatchSchema = ventaSchema.partial();
+
 export const ventaDetalleSchema = z.object({
   id: z.number().optional(),
   venta_id: z.number(),

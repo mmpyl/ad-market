@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ShoppingCart, Barcode, Plus, Trash2 } from 'lucide-react';
-import { api } from '@/lib/api-client';
+import { api } from '@/lib/api/client';
 import { toast } from 'sonner';
 
 interface CartItem {

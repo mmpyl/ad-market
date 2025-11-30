@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { FormModal } from '@/components/ui/form-modal';
-import { Plus, AlertCircle } from 'lucide-react';
-import { api } from '@/lib/api-client';
-import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { api } from '@/lib/api/client';
 import { Inventario } from '@/lib/schemas';
+import { AlertCircle, Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 export function InventarioManagement() {
   const [inventario, setInventario] = useState<Inventario[]>([]);

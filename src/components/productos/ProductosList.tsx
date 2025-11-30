@@ -1,16 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { FormModal } from '@/components/ui/form-modal';
-import { Plus, Search } from 'lucide-react';
-import { api } from '@/lib/api-client';
-import { toast } from 'sonner';
-import { Producto } from '@/lib/schemas';
+import { Input } from '@/components/ui/input';
 import { useDebounce } from '@/hooks/useDebounce';
+import { api } from '@/lib/api/client';
+import { Producto } from '@/lib/schemas';
+import { Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 export function ProductosManagement() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -218,14 +218,18 @@ export function ProductosManagement() {
             required
           />
 
-          <select
-            value={formData.estado || 'activo'}
-            onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-            className="w-full px-3 py-2 border rounded-lg"
-          >
-            <option value="activo">Activo</option>
-            <option value="inactivo">Inactivo</option>
-          </select>
+          <div>
+            <label htmlFor="estado-select" className="block text-sm font-medium mb-1">Estado</label>
+            <select
+              id="estado-select"
+              value={formData.estado || 'activo'}
+              onChange={(e) => setFormData({ ...formData, estado: e.target.value as 'activo' | 'inactivo' })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
+          </div>
         </div>
       </FormModal>
     </div>

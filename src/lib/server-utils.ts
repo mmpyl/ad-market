@@ -34,3 +34,12 @@ export function pbkdf2Verify(text: string, hash: string): boolean {
 export function generateVerificationCode(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
+
+export function safeParseJSON(jsonString: string): any {
+  try {
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error('Error parsing JSON:', error);
+    return null;
+  }
+}

@@ -13,7 +13,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Loader2, ArrowLeft } from "lucide-react";
-import { api } from "@/lib/api-client";
+import { api } from "@/lib/api/client";
 
 const emailSchema = z.object({
   email: z.string().email("Please enter a valid email address"),

@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { api } from '@/lib/api/client';
 import {
   BarChart3,
-  Users,
-  TrendingUp,
   Package,
   Settings,
   ShoppingCart,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
 import Link from 'next/link';
-import { api } from '@/lib/api-client';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 // ------------------ Types ------------------

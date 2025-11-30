@@ -29,14 +29,11 @@ export function testDevUsers() {
 // ============================================================================
 // TEST 2: Validar importación de environment
 // ============================================================================
-import { 
-  validateEnvironment, 
-  getRequiredEnv, 
-  getOptionalEnv,
-  isDevelopment,
-  isProduction,
+import {
+  EnvironmentError,
   getEnvironmentInfo,
-  EnvironmentError 
+  isDevelopment,
+  isProduction
 } from '@/lib/environment';
 
 export function testEnvironment() {
@@ -70,7 +67,7 @@ export function testEnvironment() {
 // ============================================================================
 // TEST 3: Validar tipos ApiResponse y ApiError
 // ============================================================================
-import { api, ApiError } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api/client';
 
 export function testApiClient() {
   console.log('✓ TEST 3: Importación de api-client.ts correcta');

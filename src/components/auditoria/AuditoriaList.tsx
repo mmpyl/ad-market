@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/data-table';
-import { Filter, Clock } from 'lucide-react';
-import { api } from '@/lib/api-client';
-import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { api } from '@/lib/api/client';
 import { AuditLog } from '@/lib/schemas';
+import { Clock, Filter } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 export function AuditoriaManagement() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
