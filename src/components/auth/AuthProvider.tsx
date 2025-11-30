@@ -1,9 +1,9 @@
 'use client';
 
-import React, { createContext, use, useCallback, useContext, useEffect, useState } from 'react';
+import { api } from '@/lib/api/client';
 import { User } from '@/types/auth';
-import { api } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 /**
  * Authentication context interface defining all available auth operations

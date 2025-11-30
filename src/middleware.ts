@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 
 // Rutas que requieren autenticación
 const protectedRoutes = [
-  "/",
   "/dashboard",
   "/inventario",
   "/ventas",
@@ -13,9 +12,27 @@ const protectedRoutes = [
   "/categorias",
 ];
 
+// Rutas públicas (no requieren autenticación)
+const publicRoutes = [
+  "/",
+  "/login",
+  "/register",
+  "/reset-password",
+];
+
 export function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
   const { pathname } = req.nextUrl;
+
+  // Verifica si la ruta es pública
+  const isPublicRoute = publicRoutes.some((route) =>
+    pathname === route || pathname.startsWith(route + "/")
+  );
+
+  // Si es una ruta pública, permite el acceso
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
 
   // Verifica si la ruta es protegida
   const requiresAuth = protectedRoutes.some((route) =>
