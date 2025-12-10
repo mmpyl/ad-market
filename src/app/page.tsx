@@ -44,7 +44,7 @@ export default function Home() {
     return user?.rol_sistema as RolSistema | undefined;
   }, [user]);
 
-  // Handler de redirección memoizado
+  // Handler de redirección memoizado - solo redirige si NO está cargando y NO hay usuario
   const handleRedirect = useCallback(() => {
     if (!isLoading && !user) {
       router.push('/login');

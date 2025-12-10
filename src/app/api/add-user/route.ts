@@ -1,5 +1,6 @@
 import { requestMiddleware } from '@/lib/api-utils';
 import { createErrorResponse, createSuccessResponse } from '@/lib/create-response';
+import CrudOperations from '@/lib/crud-operations';
 import { hashString } from '@/lib/server-utils';
 import { userRegisterCallback } from '@/lib/user-register';
 import { NextRequest } from 'next/server';
@@ -55,7 +56,7 @@ export const POST = requestMiddleware(async (request: NextRequest) => {
     // CREAR PERFIL / CALLBACK
     // -----------------------------
     await userRegisterCallback({
-      userId: user.id, // más explícito
+      id: user.id,
       email: user.email,
       role,
     });

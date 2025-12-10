@@ -5,30 +5,16 @@ import { User } from '@/types/auth';
 import { useRouter } from 'next/navigation';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-/**
- * Authentication context interface defining all available auth operations
- */
 interface AuthContextType {
-  /** Currently authenticated user or null if not authenticated */
   user: User | null;
-  /** Loading state during authentication operations */
   isLoading: boolean;
-  /** Login function with email and password */
   login: (email: string, password: string) => Promise<void>;
-  /** Google OAuth login function */
   googleLogin: (access_token: string) => Promise<void>;
-  /** User registration function */
   register: (email: string, password: string, passcode: string) => Promise<void>;
-  /** Logout function */
   logout: () => Promise<void>;
-  /** Refresh current user data from server */
   refreshUser: () => Promise<void>;
 }
 
-/**
- * React context for authentication state management
- * Provides authentication state and methods throughout the application
- */
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
@@ -50,28 +36,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (email: string, password: string) => {
     try {
+      console.log('[AuthProvider] Attempting login for:', email);
+      
       const response = await api.post('/auth/login', { email, password });
-      // User data is now included in the login response
-      if (response && response.user) {
-        setUser(response.user);
+      
+      console.log('[AuthProvider] Login response:', response);
+      
+      const userData = response.user || response;
+      
+      if (userData && userData.email) {
+        setUser(userData);
         setIsLoading(false);
-        // Don't redirect here - let the component handle it
+        console.log('[AuthProvider] Login successful, user set:', userData);
+        
+        
+        // ⭐ Redirigir después del login exitoso
+        const redirect = new URLSearchParams(window.location.search).get('redirect');
+        router.push(redirect || '/dashboard');
+        
       } else {
+        console.log('[AuthProvider] No user in response, refreshing...');
         await refreshUser();
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('[AuthProvider] Login error:', error);
       throw error;
     }
   };
 
-  /**
-   * Registers a new user account
-   * @param email - User's email address
-   * @param password - User's password
-   * @param passcode - Registration passcode for verification
-   * @throws Error if registration fails
-   */
   const register = async (email: string, password: string, passcode: string): Promise<void> => {
     try {
       await api.post('/auth/register', {
@@ -84,42 +76,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  /**
-   * Logs out the current user and redirects to login page
-   * Clears user state and navigates to login regardless of API call success
-   */
   const logout = async (): Promise<void> => {
     try {
+      console.log('[AuthProvider] Logging out...');
       await api.post('/auth/logout');
-      setUser(null);
-      router.push('/login');
     } catch (error) {
+      console.error('[AuthProvider] Logout error (non-critical):', error);
+    } finally {
       setUser(null);
       router.push('/login');
     }
   };
 
-  /**
-   * Refreshes current user data from the server
-   * Updates user state and loading state accordingly
-   * Memoized with useCallback to prevent unnecessary re-renders
-   */
   const refreshUser = useCallback(async (): Promise<void> => {
     try {
+      console.log('[AuthProvider] Refreshing user data...');
       const userData = await api.get('/auth/user');
+      console.log('[AuthProvider] User data refreshed:', userData);
       setUser(userData);
     } catch (error) {
+      console.log('[AuthProvider] No active session or error:', error);
       setUser(null);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  /**
-   * Authenticates user using Google OAuth access token
-   * @param access_token - Google OAuth access token
-   * @throws Error if Google authentication fails
-   */
   const googleLogin = async (access_token: string): Promise<void> => {
     try {
       await api.post('/auth/google-login', {
@@ -128,7 +110,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       await refreshUser();
     } catch (error) {
-      console.error('Google login failed:', error);
+      console.error('[AuthProvider] Google login failed:', error);
       throw error;
     }
   };
@@ -140,7 +122,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white mx-auto mb-4"></div>
+          <p className="text-sm text-gray-500">Cargando...</p>
+        </div>
       </div>
     );
   }

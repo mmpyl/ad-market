@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useCallback, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useState } from "react";
 
 enum ModeEnum {
   LOGIN = "LOGIN",
@@ -33,11 +33,11 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Memoizar handlers
+  // Memoizar handlers - AuthProvider ahora maneja la redirección
   const handleSuccess = useCallback(() => {
-    const redirectTo = searchParams.get("redirect") || "/";
-    router.replace(redirectTo);
-  }, [searchParams, router]);
+    // La redirección ahora se maneja en AuthProvider después del login exitoso
+    console.log('[LoginPage] Login successful, AuthProvider will handle redirect');
+  }, []);
 
   const handleRegisterSuccess = useCallback(() => {
     setMode(ModeEnum.LOGIN);

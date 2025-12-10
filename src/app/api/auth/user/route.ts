@@ -34,7 +34,7 @@ export const GET = async (request: NextRequest) => {
     if (DEV_MODE) {
       const emailMatch = Object.keys(MOCK_USERS).find(email => token.includes(email));
       if (emailMatch) {
-        return createSuccessResponse(MOCK_USERS[emailMatch]);
+        return createSuccessResponse({ data: MOCK_USERS[emailMatch as keyof typeof MOCK_USERS] });
       }
     }
 
@@ -75,7 +75,7 @@ export const GET = async (request: NextRequest) => {
       nombre: payload.nombre ?? null,
     };
 
-    return createSuccessResponse(user);
+    return createSuccessResponse({ data: user });
 
   } catch (error) {
     console.error('Error in auth/user:', error);

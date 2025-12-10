@@ -1,6 +1,5 @@
 'use client';
 
-import React, { useState } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,25 +10,27 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit, Eye } from 'lucide-react';
+import { Edit, Eye, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 
 interface DataTableColumn<T> {
   key: keyof T;
-  label: string;
+  header: string;
   render?: (value: any, row: T) => React.ReactNode;
   sortable?: boolean;
   width?: string;
 }
 
 interface DataTableProps<T extends { id?: number | string }> {
-  data: T[];
+  data?: T[];
   columns: DataTableColumn<T>[];
-  isLoading?: boolean;
+  loading?: boolean;
   onEdit?: (row: T) => void;
   onDelete?: (id: number | string) => Promise<void>;
   onView?: (row: T) => void;
   actions?: boolean;
+  searchPlaceholder?: string;
   pagination?: {
     page: number;
     pageSize: number;
@@ -39,7 +40,7 @@ interface DataTableProps<T extends { id?: number | string }> {
 }
 
 export function DataTable<T extends { id?: number | string }>({
-  data,
+  data = [],
   columns,
   isLoading,
   onEdit,
@@ -78,14 +79,14 @@ export function DataTable<T extends { id?: number | string }>({
                   key={String(column.key)}
                   className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300"
                 >
-                  {column.label}
+                  {column.header}
                 </th>
               ))}
               {actions && <th className="px-4 py-3 text-center text-sm font-semibold">Acciones</th>}
             </tr>
           </thead>
           <tbody>
-            {isLoading ? (
+            {loading ? (
               <tr>
                 <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-8 text-center">
                   <div className="animate-spin inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>

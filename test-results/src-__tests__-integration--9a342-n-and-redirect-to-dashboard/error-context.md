@@ -1,0 +1,42 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e6] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e7]:
+      - img [ref=e8]
+    - generic [ref=e11]:
+      - button "Open issues overlay" [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: "0"
+          - generic [ref=e15]: "1"
+        - generic [ref=e16]: Issue
+      - button "Collapse issues badge" [ref=e17]:
+        - img [ref=e18]
+  - alert [ref=e20]
+  - generic [ref=e25]:
+    - generic [ref=e27]: Welcome back
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - button "Continue with Google" [ref=e30]:
+          - img
+          - generic [ref=e31]: Continue with Google
+        - generic [ref=e33]: OR
+      - generic [ref=e34]:
+        - alert [ref=e35]:
+          - generic [ref=e36]: Invalid email or password
+        - generic [ref=e37]:
+          - generic [ref=e38]: Email
+          - textbox "email" [ref=e39]: test@example.com
+        - generic [ref=e40]:
+          - generic [ref=e41]:
+            - generic [ref=e42]: Password
+            - button "Forgot password?" [ref=e43] [cursor=pointer]
+          - textbox "password" [ref=e44]: password123
+        - button "Login" [ref=e45]
+        - generic [ref=e46]:
+          - generic [ref=e47]: Don't have an account?
+          - button "Register now" [ref=e48] [cursor=pointer]
+  - region "Notifications (F8)":
+    - list
+```

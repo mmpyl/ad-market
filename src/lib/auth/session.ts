@@ -155,6 +155,7 @@ export async function generateToken(
 export async function verifyToken(
   token?: string | null
 ): Promise<TokenVerificationResult> {
+  // Validar que el token existe
   if (!token) {
     return {
       valid: false,
@@ -163,8 +164,35 @@ export async function verifyToken(
     };
   }
 
+  // Limpiar el token: remover espacios y el prefijo "Bearer " si existe
+  let cleanToken = token.trim();
+  if (cleanToken.startsWith('Bearer ')) {
+    cleanToken = cleanToken.substring(7).trim();
+  }
+
+  // Validar formato básico del JWT (debe tener 3 partes separadas por puntos)
+  const parts = cleanToken.split('.');
+  if (parts.length !== 3) {
+    console.error('Token verification error: Invalid JWT format - expected 3 parts, got', parts.length);
+    return {
+      valid: false,
+      code: AUTH_CODE.TOKEN_INVALID,
+      payload: null,
+    };
+  }
+
+  // Validar que ninguna parte esté vacía
+  if (parts.some(part => !part || part.trim() === '')) {
+    console.error('Token verification error: JWT has empty parts');
+    return {
+      valid: false,
+      code: AUTH_CODE.TOKEN_INVALID,
+      payload: null,
+    };
+  }
+
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(cleanToken, JWT_SECRET);
 
     return {
       valid: true,
@@ -181,11 +209,19 @@ export async function verifyToken(
       };
     }
 
+    // Registrar el error específico para debugging
+    console.error('Token verification error:', {
+      name: error.name,
+      code: error.code,
+      message: error.message,
+      tokenLength: cleanToken.length,
+      tokenParts: parts.length,
+    });
+
     // Firma inválida u otro error - requiere re-login
-    console.error('Token verification error:', error);
     return {
       valid: false,
-      code: AUTH_CODE.TOKEN_INVALID || AUTH_CODE.TOKEN_MISSING,
+      code: AUTH_CODE.TOKEN_INVALID,
       payload: null,
     };
   }

@@ -2,26 +2,7 @@ import { AUTH_CODE } from '@/constants/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-/**
- * Valida que todas las variables de entorno requeridas estén presentes
- * @throws Error si falta alguna variable requerida
- */
-export function validateEnv(): void {
-  const requiredEnvVars = [
-    'POSTGREST_URL',
-    'POSTGREST_SCHEMA',
-    'POSTGREST_API_KEY',
-    'JWT_SECRET',
-    'SCHEMA_ADMIN_USER',
-    'HASH_SALT_KEY'
-  ];
-
-  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-  if (missingVars.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  }
-}
+// ==================== Types ====================
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -46,8 +27,6 @@ class ApiError extends Error {
   }
 }
 
-// ==================== Cookie Utilities ====================
-
 interface CookieOptions {
   path?: string;
   httpOnly?: boolean;
@@ -55,6 +34,49 @@ interface CookieOptions {
   sameSite?: 'strict' | 'lax' | 'none';
   maxAge?: number;
 }
+
+interface QueryParams {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  id?: string;
+  [key: string]: string | number | undefined;
+}
+
+interface RequestContext {
+  token?: string;
+  payload?: any;
+}
+
+type RouteHandler = (
+  request: NextRequest,
+  context: RequestContext
+) => Promise<Response>;
+
+// ==================== Environment Validation ====================
+
+/**
+ * Valida que todas las variables de entorno requeridas estén presentes
+ * @throws Error si falta alguna variable requerida
+ */
+export function validateEnv(): void {
+  const requiredEnvVars = [
+    'POSTGREST_URL',
+    'POSTGREST_SCHEMA',
+    'POSTGREST_API_KEY',
+    'JWT_SECRET',
+    'SCHEMA_ADMIN_USER',
+    'HASH_SALT_KEY'
+  ];
+
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
+}
+
+// ==================== Cookie Utilities ====================
 
 /**
  * Establece una cookie en la respuesta
@@ -178,14 +200,6 @@ export function responseError(
 
 // ==================== Request Utilities ====================
 
-interface QueryParams {
-  limit?: number;
-  offset?: number;
-  search?: string;
-  id?: string;
-  [key: string]: string | number | undefined;
-}
-
 /**
  * Parsea query parameters del request
  */
@@ -244,20 +258,29 @@ export function getRequestIp(request: NextRequest): string {
   return '127.0.0.1';
 }
 
-// ==================== Auth Middleware ====================
-
-interface RequestContext {
-  token?: string;
-  payload?: any;
-}
-
-type RouteHandler = (
-  request: NextRequest,
-  context: RequestContext
-) => Promise<Response>;
+// ==================== API Authentication Middleware ====================
 
 /**
- * Middleware para rutas de API con autenticación opcional
+ * Middleware para proteger endpoints de API con autenticación Bearer Token
+ * 
+ * Este middleware:
+ * 1. Valida que exista un token Bearer en los headers
+ * 2. Verifica que el token tenga formato JWT válido (3 partes)
+ * 3. Valida la firma y expiración del token
+ * 4. Proporciona el payload del token al handler
+ * 
+ * @param handler - Función que maneja la petición del endpoint
+ * @param requireAuth - Si es true, requiere autenticación; si es false, la autenticación es opcional
+ * @returns Función middleware que envuelve el handler
+ * 
+ * @example
+ * // En tu endpoint API (src/app/api/productos/route.ts)
+ * export const GET = requestMiddleware(async (request, context) => {
+ *   // context.token contiene el token válido
+ *   // context.payload contiene los datos del usuario (sub, email, role, isAdmin)
+ *   const productos = await getProductos();
+ *   return responseSuccess(productos);
+ * });
  */
 export function requestMiddleware(
   handler: RouteHandler,
@@ -270,6 +293,7 @@ export function requestMiddleware(
       if (requireAuth) {
         const authHeader = request.headers.get('authorization');
         
+        // Validar que existe el header Authorization
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
           return responseError(
             401,
@@ -278,8 +302,47 @@ export function requestMiddleware(
           );
         }
 
-        const token = authHeader.substring(7);
-        const { verifyToken } = await import('./auth');
+        // Extraer y limpiar el token
+        const token = authHeader.substring(7).trim();
+        
+        // Validación temprana: token no vacío
+        if (!token) {
+          console.error('Empty token received after Bearer prefix');
+          return responseError(
+            401,
+            'Empty authorization token',
+            AUTH_CODE.TOKEN_MISSING
+          );
+        }
+
+        // Validación temprana: formato JWT (3 partes separadas por puntos)
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+          console.error('Invalid token format received:', {
+            authHeader: authHeader.substring(0, 20) + '...',
+            tokenLength: token.length,
+            parts: parts.length,
+            firstChars: token.substring(0, 20)
+          });
+          return responseError(
+            401,
+            'Invalid token format',
+            AUTH_CODE.TOKEN_INVALID
+          );
+        }
+
+        // Validación temprana: ninguna parte vacía
+        if (parts.some(part => !part || part.trim() === '')) {
+          console.error('Token has empty parts');
+          return responseError(
+            401,
+            'Malformed token structure',
+            AUTH_CODE.TOKEN_INVALID
+          );
+        }
+
+        // Verificar firma y validez del token
+        const { verifyToken } = await import('./auth/session');
         const verification = await verifyToken(token);
 
         if (!verification.valid) {
@@ -290,11 +353,14 @@ export function requestMiddleware(
           );
         }
 
+        // Agregar token y payload al contexto para el handler
         context.token = token;
         context.payload = verification.payload;
       }
 
+      // Ejecutar el handler del endpoint con el contexto
       return await handler(request, context);
+      
     } catch (error) {
       console.error('Request middleware error:', error);
       
@@ -363,10 +429,13 @@ export async function sendVerificationEmail(
   }
 }
 
-// ==================== Client-side API (should be in separate file) ====================
-
-// NOTA: Este código debería estar en un archivo separado (api-client.ts)
-// ya que es código de cliente y no debería estar en utilities de servidor
+// ==================== Exports ====================
 
 export { ApiError };
-export type { ApiResponse, CookieOptions, QueryParams, RequestContext };
+export type { 
+  ApiResponse, 
+  CookieOptions, 
+  QueryParams, 
+  RequestContext,
+  RouteHandler
+};

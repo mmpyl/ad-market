@@ -36,7 +36,7 @@ let refreshPromise: Promise<boolean> | null = null;
  */
 async function refreshToken(): Promise<boolean> {
   try {
-    const response = await fetch('/api/auth/refresh', {
+    const response = await fetch('/api/auth/refresh', { // ✅ Cambiado a /api
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -88,6 +88,8 @@ async function apiRequest<T = any>(
   isRetry = false
 ): Promise<T> {
   try {
+    console.log('[API Client] Request:', options?.method || 'GET', endpoint); // ✅ Debug log
+
     // Obtener el token de las cookies para incluirlo en el header Authorization
     const getCookie = (name: string) => {
       if (typeof document === 'undefined') return '';
@@ -107,13 +109,16 @@ async function apiRequest<T = any>(
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(`/api${endpoint}`, {
+    const response = await fetch(`/api${endpoint}`, { // ✅ Cambiado a /api
       headers,
       credentials: 'include',
       ...options,
     });
 
+    console.log('[API Client] Response status:', response.status); // ✅ Debug log
+
     const result: ApiResponse<T> = await response.json();
+    console.log('[API Client] Response data:', result); // ✅ Debug log
 
     // Token faltante - redirigir inmediatamente
     if (result.errorCode === AUTH_CODE.TOKEN_MISSING) {
@@ -243,4 +248,3 @@ export const api = {
 
 export { ApiError };
 export type { ApiResponse };
-
